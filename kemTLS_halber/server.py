@@ -1,4 +1,6 @@
 # server.py
+import threading
+
 from numpy.f2py.auxfuncs import throw_error
 
 from kyberpy.src.kyber_py.kyber import Kyber512
@@ -11,10 +13,7 @@ from signal import signal, SIGPIPE, SIG_DFL
 signal(SIGPIPE,SIG_DFL)
 
 
-with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-    s.bind((HOST, PORT))
-    s.listen()
-    conn, addr = s.accept()
+def handle_client(conn, addr):
     with conn:
         # 1. receive public key from client
         pk_e = recv_msg(conn)
@@ -60,9 +59,6 @@ with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
         new_key_conf = bytes("Key confirmation", 'utf-8')
         nonce = os.urandom(12)
         key_conf_aead = aead_encrypt(ss_e, nonce, new_key_conf, k_2_prime2)
-        print("new key conf", key_conf_aead)
-        print("nonce", nonce)
-        print("key_conf", new_key_conf)
 
 
         send_msg(conn, key_conf_aead)
@@ -76,4 +72,18 @@ with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
 
         print("Connection established")
 
+def main():
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        s.bind((HOST, PORT))
+        s.listen()
+        print("Server listening on", (HOST, PORT))
+        while True:
+            conn, addr = s.accept()
+            print("Connected by", addr)
+            client_thread = threading.Thread(target=handle_client, args=(conn, addr))
+            client_thread.start()
 
+if __name__ == "__main__":
+    main()
+
+# testing 1000x handshakes and what average time it takes
